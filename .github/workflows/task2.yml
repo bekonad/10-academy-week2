@@ -1,0 +1,37 @@
+name: Task 2 Analysis and Merge
+
+on:
+  push:
+    branches: [task-2]
+
+jobs:
+  analyze-and-merge:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+    - name: Install dependencies
+      run: |
+        pip install pandas spacy nltk scikit-learn
+        python -m spacy download en_core_web_sm
+    - name: Run analysis
+      run: |
+        # Placeholder: Replace with your analyze_reviews.py execution
+        echo "Running analysis..."
+    - name: Commit results
+      run: |
+        git config --global user.name "GitHub Actions"
+        git config --global user.email "actions@github.com"
+        git add .
+        git commit -m "Updated Task 2 analysis files" || echo "No changes"
+    - name: Merge to main
+      run: |
+        git checkout main
+        git pull origin main
+        git merge task-2
+        git push origin main
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
