@@ -1,0 +1,99 @@
+import pandas as pd
+import sqlite3
+import matplotlib.pyplot as plt
+import seaborn as sns
+from wordcloud import WordCloud
+import os
+
+# Create visualizations directory
+os.makedirs('visualizations', exist_ok=True)
+
+# Connect to SQLite database
+conn = sqlite3.connect('bank_reviews.db')
+
+# Load data
+query = "SELECT b.bank_name, r.review_id, r.review_text, r.rating, r.sentiment_label, r.sentiment_score, r.themes FROM Reviews r JOIN Banks b ON r.bank_id = b.bank_id"
+df = pd.read_sql_query(query, conn)
+conn.close()
+
+# Split themes (assuming comma-separated, e.g., "Account Access Issues,Reliability")
+df['themes_list'] = df['themes'].str.split(',')
+df_themes = df.explode('themes_list')
+df_themes['themes_list'] = df_themes['themes_list'].str.strip()
+
+# Sentiment distribution per bank
+plt.figure(figsize=(10, 6))
+sns.countplot(x='bank_name', hue='sentiment_label', data=df, palette=['#2ecc71', '#f1c40f', '#e74c3c'])
+plt.title('Sentiment Distribution per Bank')
+plt.xlabel('Bank')
+plt.ylabel('Number of Reviews')
+plt.savefig('visualizations/sentiment_distribution.png')
+plt.close()
+
+# Average rating per bank
+avg_rating = df.groupby('bank_name')['rating'].mean().reset_index()
+plt.figure(figsize=(8, 6))
+sns.barplot(x='bank_name', y='rating', data=avg_rating, palette='viridis')
+plt.title('Average Rating per Bank')
+plt.xlabel('Bank')
+plt.ylabel('Average Rating')
+plt.savefig('visualizations/avg_rating.png')
+plt.close()
+
+# Top themes per bank
+top_themes = df_themes.groupby(['bank_name', 'themes_list']).size().reset_index(name='count')
+top_themes = top_themes.sort_values(['bank_name', 'count'], ascending=[True, False]).groupby('bank_name').head(5)
+plt.figure(figsize=(12, 6))
+sns.barplot(x='count', y='themes_list', hue='bank_name', data=top_themes)
+plt.title('Top Themes per Bank')
+plt.xlabel('Count')
+plt.ylabel('Theme')
+plt.savefig('visualizations/top_themes.png')
+plt.close()
+
+# Word cloud for all reviews
+all_text = ' '.join(df['review_text'])
+wordcloud = WordCloud(width=800, height=400, background_color='white').generate(all_text)
+plt.figure(figsize=(10, 5))
+plt.imshow(wordcloud, interpolation='bilinear')
+plt.axis('off')
+plt.savefig('visualizations/wordcloud.png')
+plt.close()
+
+# Rating distribution per bank
+plt.figure(figsize=(10, 6))
+sns.histplot(data=df, x='rating', hue='bank_name', multiple='stack', bins=5)
+plt.title('Rating Distribution per Bank')
+plt.xlabel('Rating')
+plt.ylabel('Count')
+plt.savefig('visualizations/rating_distribution.png')
+plt.close()
+
+# Sentiment score distribution
+plt.figure(figsize=(10, 6))
+sns.histplot(data=df, x='sentiment_score', bins=20, color='skyblue')
+plt.title('Sentiment Score Distribution')
+plt.xlabel('Sentiment Score')
+plt.ylabel('Count')
+plt.savefig('visualizations/sentiment_score_distribution.png')
+plt.close()
+
+# Top pain points (negative themes)
+negative_themes = df_themes[df_themes['sentiment_label'] == 'negative'].groupby('themes_list')['themes_list'].count().reset_index(name='count')
+negative_themes = negative_themes.sort_values('count', ascending=False).head(5)
+plt.figure(figsize=(10, 6))
+sns.barplot(x='count', y='themes_list', data=negative_themes, palette='Reds_r')
+plt.title('Top Pain Points Across All Banks')
+plt.xlabel('Count')
+plt.ylabel('Pain Point')
+plt.savefig('visualizations/top_pain_points.png')
+plt.close()
+
+# Identify drivers and pain points
+drivers = df_themes[df_themes['sentiment_label'] == 'positive'].groupby(['bank_name', 'themes_list']).size().reset_index(name='count')
+drivers = drivers.sort_values(['bank_name', 'count'], ascending=[True, False]).groupby('bank_name').head(2)
+pain_points = df_themes[df_themes['sentiment_label'] == 'negative'].groupby(['bank_name', 'themes_list']).size().reset_index(name='count')
+pain_points = pain_points.sort_values(['bank_name', 'count'], ascending=[True, False]).groupby('bank_name').head(2)
+
+print("Drivers:\n", drivers)
+print("Pain Points:\n", pain_points)
